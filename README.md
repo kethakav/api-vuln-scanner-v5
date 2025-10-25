@@ -14,7 +14,33 @@ Install Python packages:
 pip install -r requirements.txt
 ```
 
-## Run the server
+## Run with Docker Compose
+
+Quick start using Docker (recommended):
+
+```powershell
+docker compose up --build -d
+```
+
+Defaults:
+- App: http://localhost:8000
+- Volume: named volume `scanner_data` mounted at `/data` in the container
+- Auth token: `API_AUTH_TOKEN=changeme` (change this in `docker-compose.yml` before exposing externally)
+ - CORS: by default allows `http://localhost:3000`. Configure with `CORS_ORIGINS` (comma-separated)
+
+To view logs:
+
+```powershell
+docker compose logs -f
+```
+
+To stop:
+
+```powershell
+docker compose down
+```
+
+## Run the server (local Python)
 
 Windows PowerShell (recommended steps):
 
@@ -33,15 +59,44 @@ All protected endpoints require:
 Authorization: Bearer <API_AUTH_TOKEN>
 ```
 
+### CORS configuration
+
+If you're calling the API from a browser-based frontend, set allowed origins with the `CORS_ORIGINS` environment variable (comma-separated list). Defaults to `http://localhost:3000`.
+
+Examples:
+
+Docker Compose (`docker-compose.yml`):
+
+```yaml
+environment:
+    - CORS_ORIGINS=http://localhost:3000
+```
+
+PowerShell (local run):
+
+```powershell
+$env:CORS_ORIGINS = "http://localhost:3000"
+python .\main.py
+```
+
+To allow all origins (not recommended for production):
+
+```powershell
+$env:CORS_ORIGINS = "*"; docker compose up --build -d
+```
+
 ## API endpoints
 
 - GET `/health` – server health check
-- POST `/api/v1/scan/endpoint` – scan a single endpoint with selected tests
+- POST `/api/v1/scan/endpoint` – scan one or more endpoints with selected tests
 - POST `/api/v1/scan/full` – run a complete scan using OpenAPI and/or provided endpoints
+ - POST `/api/v1/spec/upload` – upload an OpenAPI spec (JSON/YAML) to persistent volume
+ - GET `/api/v1/spec/endpoints` – return only a list of endpoints with HTTP method from a stored spec
+ - POST `/api/v1/auth/check` – verify target API authentication with provided credentials
 
 ### POST /api/v1/scan/endpoint
 
-Body example:
+Body example (single endpoint, backward compatible):
 
 ```json
 {
@@ -57,6 +112,29 @@ Body example:
 ```
 
 The `endpoint` may be an absolute URL or a path that will be joined to `base_url`.
+
+Multiple endpoints (new):
+
+```json
+{
+    "base_url": "http://localhost:9001",
+    "endpoints": [
+        "/users",
+        "/orders",
+        "http://localhost:9001/admin/health"
+    ],
+    "method": "GET",
+    "selected_tests": ["BROKEN_AUTH", "IDOR", "CORS", "RATE_LIMIT"],
+    "openapi_path": null,
+    "auth": null,
+    "rate_limit": 10,
+    "timeout": 30
+}
+```
+
+Notes:
+- Provide either `endpoint` or `endpoints`. If both are present, they are combined.
+- The same `method` is used for all endpoints provided.
 
 ### POST /api/v1/scan/full
 
@@ -75,9 +153,96 @@ Body example (same shape as TargetConfig):
 
 Returns a ScanReport JSON summarizing findings and counts.
 
+### POST /api/v1/auth/check
+
+Validate that provided credentials can authenticate against a target endpoint. Useful for wiring a UI "Test connection" button.
+
+Body:
+
+```json
+{
+    "base_url": "https://api.example.com",
+    "endpoint": "/me",
+    "method": "GET",
+    "auth": {
+        "auth_type": "bearer",      // one of: bearer | basic | apikey
+        "token": "<TOKEN>",         // for bearer/apikey
+        "username": null,            // for basic
+        "password": null,            // for basic
+        "header_name": "Authorization" // header for bearer/apikey (e.g., "X-API-Key")
+    },
+    "timeout": 20
+}
+```
+
+Response:
+
+```json
+{
+    "target_url": "https://api.example.com/me",
+    "method": "GET",
+    "unauth_status": 401,
+    "auth_status": 200,
+    "requires_auth": true,
+    "is_authenticated": true,
+    "detected_auth_type": "bearer",
+    "jwt_info": { "header": {"alg": "RS256"}, "claims": {"iss": "...", "exp": 1730000000} },
+    "response_snippet": "{\n  \"id\": 123, ...",
+    "error": null
+}
+```
+
+Supported authentication methods:
+- Bearer: `Authorization: Bearer <token>`
+- Basic: HTTP Basic with username/password
+- API Key (header): header name configurable via `auth.header_name` (e.g., `X-API-Key`)
+
+### Upload an OpenAPI spec
+
+Upload a spec file that will be saved to the mounted volume (`/data/specs`) and used as default for scans if none is provided explicitly:
+
+PowerShell example:
+
+```powershell
+$token = "your-secret-admin-token"
+$file = "C:\\path\\to\\openapi.json"
+Invoke-WebRequest -Uri "http://localhost:8000/api/v1/spec/upload" -Method Post -Headers @{ Authorization = "Bearer $token" } -Form @{ file = Get-Item $file }
+```
+
+Curl alternative:
+
+```powershell
+curl -X POST "http://localhost:8000/api/v1/spec/upload" ^
+    -H "Authorization: Bearer your-secret-admin-token" ^
+    -F "file=@openapi.json"
+```
+
+Response includes the saved path and a quick summary (server URL, counts).
+
+### Get extracted endpoints (minimal)
+
+Returns only the list of endpoints with their HTTP method from the latest uploaded spec (or a specific file via `?file=`). The response is a flat JSON array like:
+
+```json
+[
+    { "method": "GET", "endpoint": "/users" },
+    { "method": "POST", "endpoint": "/users" },
+    { "method": "GET", "endpoint": "https://api.example.com/health" }
+]
+```
+
+```powershell
+curl -H "Authorization: Bearer your-secret-admin-token" "http://localhost:8000/api/v1/spec/endpoints"
+```
+
+Optional filters:
+- `file` – the uploaded filename to parse (e.g., `openapi.json`)
+- `methods` – one or more HTTP methods (e.g., `?methods=GET&methods=POST`)
+
 ## Project layout
 
 - `main.py` – FastAPI app exposing scan endpoints
+- `docker-compose.yml` / `Dockerfile` – containerized deployment; persists specs under named volume
 - `scanner_core.py` – core scanning engine and models (reusable)
 - `openapi3.yml` / `openapi (1).json` – optional sample specs for testing
 - `requirements.txt` – dependencies

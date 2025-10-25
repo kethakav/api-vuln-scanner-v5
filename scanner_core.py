@@ -15,6 +15,7 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Optional, Dict, List, Any, Tuple
+import base64
 
 import httpx
 import jwt
@@ -867,6 +868,7 @@ class APIPenTester:
 
     async def __aenter__(self):
         headers = {}
+        auth_param = None
 
         # Configure authentication
         if self.config.auth:
@@ -874,6 +876,9 @@ class APIPenTester:
                 headers[self.config.auth.header_name] = f"Bearer {self.config.auth.token}"
             elif self.config.auth.auth_type == "apikey" and self.config.auth.token:
                 headers[self.config.auth.header_name] = self.config.auth.token
+            elif self.config.auth.auth_type == "basic" and self.config.auth.username and self.config.auth.password:
+                # Prefer httpx auth param for Basic auth
+                auth_param = (self.config.auth.username, self.config.auth.password)
 
         async def _on_response(response: httpx.Response):
             # Increment request counter for reporting
@@ -889,6 +894,8 @@ class APIPenTester:
             follow_redirects=True,
             event_hooks={"response": [_on_response]},
         )
+        if auth_param is not None:
+            common_kwargs["auth"] = auth_param
 
         if self.transport is not None:
             self.client = httpx.AsyncClient(transport=self.transport, **common_kwargs)

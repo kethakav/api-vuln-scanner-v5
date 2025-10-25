@@ -1,0 +1,20 @@
+version: "3.9"
+services:
+  api-scanner:
+    build: .
+    container_name: api-vuln-scanner
+    ports:
+      - "8000:8000"
+    environment:
+      # Change this before exposing externally
+      - API_AUTH_TOKEN=changeme
+      - DATA_DIR=/data
+      # Comma-separated list of allowed CORS origins. Use '*' to allow all.
+      - CORS_ORIGINS=http://localhost:3000
+    volumes:
+      - scanner_data:/data
+    restart: unless-stopped
+
+volumes:
+  scanner_data:
+    driver: local
