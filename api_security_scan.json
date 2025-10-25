@@ -1,128 +1,468 @@
 {
-  "target": "http://localhost:5002/",
-  "scan_start": "2025-10-25T20:37:05.370035",
-  "scan_end": "2025-10-25T20:37:14.776535",
+  "target": "http://localhost:9001/",
+  "scan_start": "2025-10-25T21:52:00.679017",
+  "scan_end": "2025-10-25T21:52:06.420087",
   "findings": [
     {
       "vuln_type": "Broken Authentication",
       "severity": "CRITICAL",
-      "endpoint": "http://localhost:5002/createdb",
+      "endpoint": "http://localhost:9001/health",
       "description": "Endpoint accessible without authentication",
       "evidence": {
         "status_code": 200
       },
       "remediation": "Implement proper authentication checks",
-      "timestamp": "2025-10-25T20:37:05.923107"
+      "timestamp": "2025-10-25T21:52:01.165746"
     },
     {
-      "vuln_type": "Broken Authentication",
-      "severity": "CRITICAL",
-      "endpoint": "http://localhost:5002/",
-      "description": "Endpoint accessible without authentication",
-      "evidence": {
-        "status_code": 200
-      },
-      "remediation": "Implement proper authentication checks",
-      "timestamp": "2025-10-25T20:37:07.367107"
-    },
-    {
-      "vuln_type": "Missing Rate Limiting",
+      "vuln_type": "CORS Misconfiguration",
       "severity": "MEDIUM",
-      "endpoint": "http://localhost:5002/",
-      "description": "No rate limiting detected - 30 requests in 0.06s",
+      "endpoint": "http://localhost:9001/health",
+      "description": "CORS policy allows all origins (*)",
       "evidence": {
-        "requests": 30,
-        "time": "0.06s",
-        "success_rate": "30/30"
+        "ACAO": "*"
       },
-      "remediation": "Implement rate limiting to prevent abuse",
-      "timestamp": "2025-10-25T20:37:07.435730"
+      "remediation": "Restrict CORS to specific trusted origins",
+      "timestamp": "2025-10-25T21:52:01.171455"
     },
     {
-      "vuln_type": "Broken Authentication",
-      "severity": "CRITICAL",
-      "endpoint": "http://localhost:5002/users/v1",
-      "description": "Endpoint accessible without authentication",
-      "evidence": {
-        "status_code": 200
-      },
-      "remediation": "Implement proper authentication checks",
-      "timestamp": "2025-10-25T20:37:07.867958"
-    },
-    {
-      "vuln_type": "Missing Rate Limiting",
-      "severity": "MEDIUM",
-      "endpoint": "http://localhost:5002/users/v1",
-      "description": "No rate limiting detected - 30 requests in 0.09s",
-      "evidence": {
-        "requests": 30,
-        "time": "0.09s",
-        "success_rate": "30/30"
-      },
-      "remediation": "Implement rate limiting to prevent abuse",
-      "timestamp": "2025-10-25T20:37:07.959750"
-    },
-    {
-      "vuln_type": "Broken Authentication",
-      "severity": "CRITICAL",
-      "endpoint": "http://localhost:5002/users/v1/_debug",
-      "description": "Endpoint accessible without authentication",
-      "evidence": {
-        "status_code": 200
-      },
-      "remediation": "Implement proper authentication checks",
-      "timestamp": "2025-10-25T20:37:08.385955"
-    },
-    {
-      "vuln_type": "Missing Rate Limiting",
-      "severity": "MEDIUM",
-      "endpoint": "http://localhost:5002/users/v1/_debug",
-      "description": "No rate limiting detected - 30 requests in 0.08s",
-      "evidence": {
-        "requests": 30,
-        "time": "0.08s",
-        "success_rate": "30/30"
-      },
-      "remediation": "Implement rate limiting to prevent abuse",
-      "timestamp": "2025-10-25T20:37:08.473187"
-    },
-    {
-      "vuln_type": "NoSQL Injection",
+      "vuln_type": "CORS Misconfiguration",
       "severity": "HIGH",
-      "endpoint": "http://localhost:5002/users/v1/login",
-      "description": "Possible NoSQL injection via body field path username",
+      "endpoint": "http://localhost:9001/health",
+      "description": "CORS allows credentials with wildcard origin (*)",
       "evidence": {
-        "payload": "{\"$gt\": \"\"}",
-        "status_code": 200
+        "ACAO": "*",
+        "ACAC": "true"
       },
-      "remediation": "Validate and sanitize JSON bodies; disallow operator injection in user input",
-      "timestamp": "2025-10-25T20:37:09.687005"
+      "remediation": "Do not use '*' with credentials; specify exact allowed origins",
+      "timestamp": "2025-10-25T21:52:01.171464"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/health",
+      "description": "No rate limiting detected - 30 requests in 0.04s",
+      "evidence": {
+        "requests": 30,
+        "time": "0.04s",
+        "success_rate": "30/30"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-25T21:52:01.212305"
     },
     {
       "vuln_type": "Broken Authentication",
       "severity": "CRITICAL",
-      "endpoint": "http://localhost:5002/books/v1",
+      "endpoint": "http://localhost:9001/public",
       "description": "Endpoint accessible without authentication",
       "evidence": {
         "status_code": 200
       },
       "remediation": "Implement proper authentication checks",
-      "timestamp": "2025-10-25T20:37:13.168788"
+      "timestamp": "2025-10-25T21:52:01.617898"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/public",
+      "description": "CORS policy allows all origins (*)",
+      "evidence": {
+        "ACAO": "*"
+      },
+      "remediation": "Restrict CORS to specific trusted origins",
+      "timestamp": "2025-10-25T21:52:01.619528"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "HIGH",
+      "endpoint": "http://localhost:9001/public",
+      "description": "CORS allows credentials with wildcard origin (*)",
+      "evidence": {
+        "ACAO": "*",
+        "ACAC": "true"
+      },
+      "remediation": "Do not use '*' with credentials; specify exact allowed origins",
+      "timestamp": "2025-10-25T21:52:01.619534"
     },
     {
       "vuln_type": "Missing Rate Limiting",
       "severity": "MEDIUM",
-      "endpoint": "http://localhost:5002/books/v1",
-      "description": "No rate limiting detected - 30 requests in 0.12s",
+      "endpoint": "http://localhost:9001/public",
+      "description": "No rate limiting detected - 30 requests in 0.02s",
       "evidence": {
         "requests": 30,
-        "time": "0.12s",
+        "time": "0.02s",
         "success_rate": "30/30"
       },
       "remediation": "Implement rate limiting to prevent abuse",
-      "timestamp": "2025-10-25T20:37:13.294250"
+      "timestamp": "2025-10-25T21:52:01.644456"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/protected",
+      "description": "CORS policy allows all origins (*)",
+      "evidence": {
+        "ACAO": "*"
+      },
+      "remediation": "Restrict CORS to specific trusted origins",
+      "timestamp": "2025-10-25T21:52:02.084068"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "HIGH",
+      "endpoint": "http://localhost:9001/protected",
+      "description": "CORS allows credentials with wildcard origin (*)",
+      "evidence": {
+        "ACAO": "*",
+        "ACAC": "true"
+      },
+      "remediation": "Do not use '*' with credentials; specify exact allowed origins",
+      "timestamp": "2025-10-25T21:52:02.084221"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/protected",
+      "description": "No rate limiting detected - 30 requests in 0.03s",
+      "evidence": {
+        "requests": 30,
+        "time": "0.03s",
+        "success_rate": "30/30"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-25T21:52:02.110421"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/bypass-protected",
+      "description": "CORS policy allows all origins (*)",
+      "evidence": {
+        "ACAO": "*"
+      },
+      "remediation": "Restrict CORS to specific trusted origins",
+      "timestamp": "2025-10-25T21:52:02.562194"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "HIGH",
+      "endpoint": "http://localhost:9001/bypass-protected",
+      "description": "CORS allows credentials with wildcard origin (*)",
+      "evidence": {
+        "ACAO": "*",
+        "ACAC": "true"
+      },
+      "remediation": "Do not use '*' with credentials; specify exact allowed origins",
+      "timestamp": "2025-10-25T21:52:02.562202"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/bypass-protected",
+      "description": "No rate limiting detected - 30 requests in 0.03s",
+      "evidence": {
+        "requests": 30,
+        "time": "0.03s",
+        "success_rate": "30/30"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-25T21:52:02.590267"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/broken-auth",
+      "description": "CORS policy allows all origins (*)",
+      "evidence": {
+        "ACAO": "*"
+      },
+      "remediation": "Restrict CORS to specific trusted origins",
+      "timestamp": "2025-10-25T21:52:03.013664"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "HIGH",
+      "endpoint": "http://localhost:9001/broken-auth",
+      "description": "CORS allows credentials with wildcard origin (*)",
+      "evidence": {
+        "ACAO": "*",
+        "ACAC": "true"
+      },
+      "remediation": "Do not use '*' with credentials; specify exact allowed origins",
+      "timestamp": "2025-10-25T21:52:03.013671"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/broken-auth",
+      "description": "No rate limiting detected - 30 requests in 0.03s",
+      "evidence": {
+        "requests": 30,
+        "time": "0.03s",
+        "success_rate": "30/30"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-25T21:52:03.043185"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/users/{user_id}",
+      "description": "CORS policy allows all origins (*)",
+      "evidence": {
+        "ACAO": "*"
+      },
+      "remediation": "Restrict CORS to specific trusted origins",
+      "timestamp": "2025-10-25T21:52:03.478244"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "HIGH",
+      "endpoint": "http://localhost:9001/users/{user_id}",
+      "description": "CORS allows credentials with wildcard origin (*)",
+      "evidence": {
+        "ACAO": "*",
+        "ACAC": "true"
+      },
+      "remediation": "Do not use '*' with credentials; specify exact allowed origins",
+      "timestamp": "2025-10-25T21:52:03.478251"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/search",
+      "description": "CORS policy allows all origins (*)",
+      "evidence": {
+        "ACAO": "*"
+      },
+      "remediation": "Restrict CORS to specific trusted origins",
+      "timestamp": "2025-10-25T21:52:03.945204"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "HIGH",
+      "endpoint": "http://localhost:9001/search",
+      "description": "CORS allows credentials with wildcard origin (*)",
+      "evidence": {
+        "ACAO": "*",
+        "ACAC": "true"
+      },
+      "remediation": "Do not use '*' with credentials; specify exact allowed origins",
+      "timestamp": "2025-10-25T21:52:03.945212"
+    },
+    {
+      "vuln_type": "Broken Authentication",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:9001/xss",
+      "description": "Endpoint accessible without authentication",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Implement proper authentication checks",
+      "timestamp": "2025-10-25T21:52:04.384320"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/xss",
+      "description": "CORS policy allows all origins (*)",
+      "evidence": {
+        "ACAO": "*"
+      },
+      "remediation": "Restrict CORS to specific trusted origins",
+      "timestamp": "2025-10-25T21:52:04.386551"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "HIGH",
+      "endpoint": "http://localhost:9001/xss",
+      "description": "CORS allows credentials with wildcard origin (*)",
+      "evidence": {
+        "ACAO": "*",
+        "ACAC": "true"
+      },
+      "remediation": "Do not use '*' with credentials; specify exact allowed origins",
+      "timestamp": "2025-10-25T21:52:04.386558"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/xss",
+      "description": "No rate limiting detected - 30 requests in 0.02s",
+      "evidence": {
+        "requests": 30,
+        "time": "0.02s",
+        "success_rate": "30/30"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-25T21:52:04.410619"
+    },
+    {
+      "vuln_type": "Broken Authentication",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:9001/cors/misconfig",
+      "description": "Endpoint accessible without authentication",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Implement proper authentication checks",
+      "timestamp": "2025-10-25T21:52:04.843044"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/cors/misconfig",
+      "description": "CORS policy allows all origins (*)",
+      "evidence": {
+        "ACAO": "*"
+      },
+      "remediation": "Restrict CORS to specific trusted origins",
+      "timestamp": "2025-10-25T21:52:04.845100"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "HIGH",
+      "endpoint": "http://localhost:9001/cors/misconfig",
+      "description": "CORS allows credentials with wildcard origin (*)",
+      "evidence": {
+        "ACAO": "*",
+        "ACAC": "true"
+      },
+      "remediation": "Do not use '*' with credentials; specify exact allowed origins",
+      "timestamp": "2025-10-25T21:52:04.845106"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/cors/misconfig",
+      "description": "No rate limiting detected - 30 requests in 0.02s",
+      "evidence": {
+        "requests": 30,
+        "time": "0.02s",
+        "success_rate": "30/30"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-25T21:52:04.867607"
+    },
+    {
+      "vuln_type": "Broken Authentication",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:9001/debug",
+      "description": "Endpoint accessible without authentication",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Implement proper authentication checks",
+      "timestamp": "2025-10-25T21:52:05.290597"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/debug",
+      "description": "CORS policy allows all origins (*)",
+      "evidence": {
+        "ACAO": "*"
+      },
+      "remediation": "Restrict CORS to specific trusted origins",
+      "timestamp": "2025-10-25T21:52:05.292230"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "HIGH",
+      "endpoint": "http://localhost:9001/debug",
+      "description": "CORS allows credentials with wildcard origin (*)",
+      "evidence": {
+        "ACAO": "*",
+        "ACAC": "true"
+      },
+      "remediation": "Do not use '*' with credentials; specify exact allowed origins",
+      "timestamp": "2025-10-25T21:52:05.292235"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/debug",
+      "description": "No rate limiting detected - 30 requests in 0.02s",
+      "evidence": {
+        "requests": 30,
+        "time": "0.02s",
+        "success_rate": "30/30"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-25T21:52:05.316237"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/jwt/protected",
+      "description": "CORS policy allows all origins (*)",
+      "evidence": {
+        "ACAO": "*"
+      },
+      "remediation": "Restrict CORS to specific trusted origins",
+      "timestamp": "2025-10-25T21:52:05.736165"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "HIGH",
+      "endpoint": "http://localhost:9001/jwt/protected",
+      "description": "CORS allows credentials with wildcard origin (*)",
+      "evidence": {
+        "ACAO": "*",
+        "ACAC": "true"
+      },
+      "remediation": "Do not use '*' with credentials; specify exact allowed origins",
+      "timestamp": "2025-10-25T21:52:05.736172"
+    },
+    {
+      "vuln_type": "Broken Authentication",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:9001/expensive",
+      "description": "Endpoint accessible without authentication",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Implement proper authentication checks",
+      "timestamp": "2025-10-25T21:52:06.187917"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/expensive",
+      "description": "CORS policy allows all origins (*)",
+      "evidence": {
+        "ACAO": "*"
+      },
+      "remediation": "Restrict CORS to specific trusted origins",
+      "timestamp": "2025-10-25T21:52:06.189815"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "HIGH",
+      "endpoint": "http://localhost:9001/expensive",
+      "description": "CORS allows credentials with wildcard origin (*)",
+      "evidence": {
+        "ACAO": "*",
+        "ACAC": "true"
+      },
+      "remediation": "Do not use '*' with credentials; specify exact allowed origins",
+      "timestamp": "2025-10-25T21:52:06.189821"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/expensive",
+      "description": "No rate limiting detected - 30 requests in 0.02s",
+      "evidence": {
+        "requests": 30,
+        "time": "0.02s",
+        "success_rate": "30/30"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-25T21:52:06.213731"
     }
   ],
-  "endpoints_tested": 14,
-  "requests_made": 456
+  "endpoints_tested": 12,
+  "requests_made": 372
 }

@@ -1,126 +1,87 @@
-# API Vulnerability Scanner v1.0
+# API Vulnerability Scanner (FastAPI backend)
 
-A lightweight automated security testing tool for REST APIs using httpx and pydantic, with an optional endpoint discovery spider.
+Run API security checks via a simple REST interface powered by FastAPI. The core scanner supports auth checks, SQL/NoSQL injection heuristics, IDOR, CORS misconfigurations, sensitive data exposure, reflected XSS, and rate limiting probes. OpenAPI 3.x specs can be used to auto-discover operations and synthesize minimal request bodies for write methods.
 
-## Important Legal Notice
+## Legal Notice
 
-Use this tool only against systems you have explicit, written permission to test. Unauthorized testing may violate laws and regulations. Respect `robots.txt` during crawling unless you have permission to override it.
+Use this tool only against systems you have explicit, written permission to test. Unauthorized testing may violate laws and regulations.
 
 ## Requirements
 
-Install the required packages in your Python environment:
+Install Python packages:
 
 ```
-pip install httpx==0.28.1 pydantic==2.12.3 pyjwt==2.10.1 rich==13.9.4 beautifulsoup4==4.12.3 PyYAML==6.0.2
+pip install -r requirements.txt
 ```
 
-## Files
+## Run the server
 
-- `main.py` — Scanner engine and example usage to run security tests against a set of endpoints.
-- `spider.py` — Endpoint discovery spider. Crawls a base URL (and `sitemap.xml`), optionally parses OpenAPI docs (local/remote), and outputs discovered paths.
-- `openapi3.yml` — Example OpenAPI v3 spec (VAmPI) that the spider can parse locally to seed endpoints.
+Windows PowerShell (recommended steps):
 
-## Discover endpoints with the spider
-
-You can run the spider to enumerate potential endpoints (paths) for a target. It:
-
-- Seeds from `sitemap.xml` when present
-- Crawls HTML pages within the same origin (bounded by `max_depth`/`max_pages`)
-- Attempts to detect OpenAPI docs from common URLs (`/openapi.json`, `/swagger.json`, `/v3/api-docs`)
-- Optionally parses a local OpenAPI file (like `openapi3.yml`)
-- Filters out static assets via include/exclude regex patterns
-
-Example (programmatic):
-
-```python
-import asyncio
-from spider import discover_endpoints, save_endpoints
-
-async def run():
-    endpoints = await discover_endpoints(
-        base_url="http://localhost:5002",
-        max_depth=2,
-        max_pages=200,
-        include_sitemap=True,
-        local_openapi_file="openapi3.yml",
-        include_patterns=[r"/api", r"/v1", r"/users", r"/books", r"/me"],
-        exclude_patterns=[r"\.(css|js|png|jpg|jpeg|gif|svg|ico|woff2?)$", r"/static/"],
-    )
-    save_endpoints(endpoints, "discovered_endpoints.json")
-
-asyncio.run(run())
+```powershell
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+$env:API_AUTH_TOKEN = "your-secret-admin-token"  # required for API access
+python .\main.py
 ```
 
-## Built-in tests (current)
+Open Swagger UI: http://localhost:8000/docs
 
-The scanner includes checks for:
-
-- Authentication bypass / broken auth (unauthenticated access)
-- JWT issues (header algorithm inspection, long-exp tokens, and optional unsigned token probe)
-- SQL/NoSQL injection heuristics
-- IDOR (sequential ID probing)
-- CORS misconfigurations (wildcard origin, origin reflection, and credentials+wildcard)
-- Sensitive data exposure (keyword-based)
-- Rate limiting (concurrent request probe with 429/Retry-After/X-RateLimit detection; method-aware)
-- Reflected XSS (simple reflection heuristic on a query param)
-
-You can tune the target and which endpoints to exercise; more granular per-test toggles are planned.
-
-## OpenAPI method coverage
-
-If you provide an OpenAPI 3.x spec via `openapi_path`, the scanner now extracts operations across methods (GET/POST/PUT/PATCH/DELETE) and runs method-aware tests. Currently:
-
-- GET operations: full suite as before (auth bypass, JWT analysis, SQL/NoSQL heuristics, IDOR, CORS, sensitive data exposure, reflected XSS, rate limiting)
-- POST/PUT/PATCH operations: auth bypass, JWT analysis, CORS, NoSQL body injection heuristic, and rate limiting
-
-This is an incremental step; deeper schema-driven fuzzing is planned.
-
-### Minimal request body generation (new)
-
-For POST/PUT/PATCH operations with `application/json` request bodies, the scanner now attempts to generate a minimal valid JSON payload using OpenAPI examples/defaults or simple type-based synthesis (strings, numbers, booleans, arrays, and objects with required fields). This enables baseline requests and basic NoSQL-injection mutation testing against body fields.
-
-## Use the spider in the scanner
-
-In `main.py`, set `use_spider = True` inside `main()` to auto-discover endpoints before scanning. If `openapi3.yml` exists, it will be used to seed endpoints.
-
-Discovered endpoints (paths) are converted to absolute URLs using `base_url` and saved to `discovered_endpoints.json`.
-
-## Run a scan
-
-Edit `config = TargetConfig(...)` in `main.py` to point to your authorized target and endpoints. Then run:
+All protected endpoints require:
 
 ```
-python main.py
+Authorization: Bearer <API_AUTH_TOKEN>
 ```
 
-The scanner prints results to the console and writes `api_security_scan.json`.
+## API endpoints
 
-### Use an OpenAPI spec to auto-populate endpoints
+- GET `/health` – server health check
+- POST `/api/v1/scan/endpoint` – scan a single endpoint with selected tests
+- POST `/api/v1/scan/full` – run a complete scan using OpenAPI and/or provided endpoints
 
-You can point the scanner directly at a local OpenAPI 3.x spec (YAML or JSON) and it will:
+### POST /api/v1/scan/endpoint
 
-- Resolve the first server URL from `servers` (with variable defaults)
-- Extract all `GET` operation paths and build absolute endpoint URLs
-- Infer a basic `AuthConfig` (type and header name) from `components.securitySchemes` (no credentials)
+Body example:
 
-Example snippet in `main.py`:
-
-```python
-config = TargetConfig(
-    base_url="http://localhost:9001",  # used as fallback if spec servers are missing
-    openapi_path="openapi3.yml",       # local path to OpenAPI spec
-    endpoints=[],                        # leave empty to auto-populate GET endpoints from the spec
-)
+```json
+{
+    "base_url": "http://localhost:9001",
+    "endpoint": "/users",
+    "method": "GET",
+    "selected_tests": ["BROKEN_AUTH", "JWT_VULN", "SQL_INJECTION", "NOSQL_INJECTION", "IDOR", "CORS", "INFO_DISCLOSURE", "XSS", "RATE_LIMIT"],
+    "openapi_path": "openapi (1).json",
+    "auth": { "auth_type": "bearer", "token": "TARGET_API_TOKEN", "header_name": "Authorization" },
+    "rate_limit": 10,
+    "timeout": 30
+}
 ```
 
-Note: For YAML specs, install PyYAML first:
+The `endpoint` may be an absolute URL or a path that will be joined to `base_url`.
 
+### POST /api/v1/scan/full
+
+Body example (same shape as TargetConfig):
+
+```json
+{
+    "base_url": "http://localhost:9001",
+    "openapi_path": "openapi (1).json",
+    "endpoints": [],
+    "auth": { "auth_type": "bearer", "token": "TARGET_API_TOKEN" },
+    "rate_limit": 5,
+    "timeout": 30
+}
 ```
-pip install pyyaml==6.0.2
-```
 
-## Notes
+Returns a ScanReport JSON summarizing findings and counts.
 
-- The spider focuses on discovering paths. It can return many non-API pages; use include/exclude patterns to narrow down to API-like paths.
-- For APIs that don't link endpoints in HTML, OpenAPI parsing (local or remote) is the most reliable discovery method.
-- Increase `max_pages`/`max_depth` cautiously; crawling large sites can be slow and noisy.
+## Project layout
+
+- `main.py` – FastAPI app exposing scan endpoints
+- `scanner_core.py` – core scanning engine and models (reusable)
+- `openapi3.yml` / `openapi (1).json` – optional sample specs for testing
+- `requirements.txt` – dependencies
+
+## Legacy
+
+`main_OLD.py` contains an earlier CLI example and can still be run directly if desired.
