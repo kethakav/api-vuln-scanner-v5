@@ -1,0 +1,131 @@
+{
+  "target": "http://localhost:5002/",
+  "scan_start": "2025-10-24T16:54:26.257027",
+  "scan_end": "2025-10-24T16:54:43.311881",
+  "findings": [
+    {
+      "vuln_type": "Broken Authentication",
+      "severity": "CRITICAL",
+      "endpoint": "/createdb",
+      "description": "Endpoint accessible without authentication",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Implement proper authentication checks",
+      "timestamp": "2025-10-24T16:54:26.566181"
+    },
+    {
+      "vuln_type": "Broken Authentication",
+      "severity": "CRITICAL",
+      "endpoint": "/",
+      "description": "Endpoint accessible without authentication",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Implement proper authentication checks",
+      "timestamp": "2025-10-24T16:54:30.560622"
+    },
+    {
+      "vuln_type": "Insecure Direct Object Reference",
+      "severity": "HIGH",
+      "endpoint": "/",
+      "description": "Possible IDOR vulnerability - sequential IDs accessible",
+      "evidence": {
+        "responses": [
+          [
+            1,
+            200
+          ],
+          [
+            2,
+            200
+          ],
+          [
+            999,
+            200
+          ],
+          [
+            1000,
+            200
+          ]
+        ]
+      },
+      "remediation": "Implement proper authorization checks for resource access",
+      "timestamp": "2025-10-24T16:54:32.208897"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "/",
+      "description": "No rate limiting detected - 50 requests in 0.27s",
+      "evidence": {
+        "requests": 50,
+        "time": "0.27s",
+        "success_rate": "50/50"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-24T16:54:32.486780"
+    },
+    {
+      "vuln_type": "Broken Authentication",
+      "severity": "CRITICAL",
+      "endpoint": "/users/v1",
+      "description": "Endpoint accessible without authentication",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Implement proper authentication checks",
+      "timestamp": "2025-10-24T16:54:32.707253"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "/users/v1",
+      "description": "No rate limiting detected - 50 requests in 0.22s",
+      "evidence": {
+        "requests": 50,
+        "time": "0.22s",
+        "success_rate": "50/50"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-24T16:54:34.586158"
+    },
+    {
+      "vuln_type": "Broken Authentication",
+      "severity": "CRITICAL",
+      "endpoint": "/users/v1/_debug",
+      "description": "Endpoint accessible without authentication",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Implement proper authentication checks",
+      "timestamp": "2025-10-24T16:54:34.802601"
+    },
+    {
+      "vuln_type": "Information Disclosure",
+      "severity": "HIGH",
+      "endpoint": "/users/v1/_debug",
+      "description": "Password field in response",
+      "evidence": {
+        "pattern": "password"
+      },
+      "remediation": "Remove sensitive data from API responses",
+      "timestamp": "2025-10-24T16:54:36.487014"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "/users/v1/_debug",
+      "description": "No rate limiting detected - 50 requests in 0.24s",
+      "evidence": {
+        "requests": 50,
+        "time": "0.24s",
+        "success_rate": "50/50"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-24T16:54:36.728957"
+    }
+  ],
+  "endpoints_tested": 7,
+  "requests_made": 0
+}

@@ -1,0 +1,195 @@
+{
+  "target": "http://localhost:5002/",
+  "scan_start": "2025-10-25T19:30:51.280629",
+  "scan_end": "2025-10-25T19:31:12.889659",
+  "findings": [
+    {
+      "vuln_type": "Broken Authentication",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:5002/createdb",
+      "description": "Endpoint accessible without authentication",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Implement proper authentication checks",
+      "timestamp": "2025-10-25T19:30:51.829970"
+    },
+    {
+      "vuln_type": "JWT Vulnerability",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:5002/createdb",
+      "description": "API accepted an unsigned JWT (alg=none)",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Reject tokens with alg=none and verify signature for all JWTs",
+      "timestamp": "2025-10-25T19:30:51.864088"
+    },
+    {
+      "vuln_type": "SQL Injection",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:5002/createdb",
+      "description": "Possible SQL injection in parameter 'id'",
+      "evidence": {
+        "payload": "' OR '1'='1",
+        "status_code": 500,
+        "response_snippet": "<!doctype html>\n<html lang=en>\n  <head>\n    <title>sqlalchemy.exc.IntegrityError: (sqlite3.IntegrityError) UNIQUE constraint failed: books.book_title\n[SQL: INSERT INTO books (book_title, secret_conten"
+      },
+      "remediation": "Use parameterized queries and input validation",
+      "timestamp": "2025-10-25T19:30:51.910154"
+    },
+    {
+      "vuln_type": "Broken Authentication",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:5002/",
+      "description": "Endpoint accessible without authentication",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Implement proper authentication checks",
+      "timestamp": "2025-10-25T19:30:55.267157"
+    },
+    {
+      "vuln_type": "JWT Vulnerability",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:5002/",
+      "description": "API accepted an unsigned JWT (alg=none)",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Reject tokens with alg=none and verify signature for all JWTs",
+      "timestamp": "2025-10-25T19:30:55.275010"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:5002/",
+      "description": "No rate limiting detected - 50 requests in 0.09s",
+      "evidence": {
+        "requests": 50,
+        "time": "0.09s",
+        "success_rate": "50/50"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-25T19:30:57.312360"
+    },
+    {
+      "vuln_type": "Broken Authentication",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:5002/users/v1",
+      "description": "Endpoint accessible without authentication",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Implement proper authentication checks",
+      "timestamp": "2025-10-25T19:30:57.744888"
+    },
+    {
+      "vuln_type": "JWT Vulnerability",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:5002/users/v1",
+      "description": "API accepted an unsigned JWT (alg=none)",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Reject tokens with alg=none and verify signature for all JWTs",
+      "timestamp": "2025-10-25T19:30:57.751915"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:5002/users/v1",
+      "description": "No rate limiting detected - 50 requests in 0.15s",
+      "evidence": {
+        "requests": 50,
+        "time": "0.15s",
+        "success_rate": "50/50"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-25T19:30:59.903277"
+    },
+    {
+      "vuln_type": "Broken Authentication",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:5002/users/v1/_debug",
+      "description": "Endpoint accessible without authentication",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Implement proper authentication checks",
+      "timestamp": "2025-10-25T19:31:00.350189"
+    },
+    {
+      "vuln_type": "JWT Vulnerability",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:5002/users/v1/_debug",
+      "description": "API accepted an unsigned JWT (alg=none)",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Reject tokens with alg=none and verify signature for all JWTs",
+      "timestamp": "2025-10-25T19:31:00.360605"
+    },
+    {
+      "vuln_type": "Information Disclosure",
+      "severity": "HIGH",
+      "endpoint": "http://localhost:5002/users/v1/_debug",
+      "description": "Password field in response",
+      "evidence": {
+        "pattern": "password"
+      },
+      "remediation": "Remove sensitive data from API responses",
+      "timestamp": "2025-10-25T19:31:02.067491"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:5002/users/v1/_debug",
+      "description": "No rate limiting detected - 50 requests in 0.14s",
+      "evidence": {
+        "requests": 50,
+        "time": "0.14s",
+        "success_rate": "50/50"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-25T19:31:02.461601"
+    },
+    {
+      "vuln_type": "Broken Authentication",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:5002/books/v1",
+      "description": "Endpoint accessible without authentication",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Implement proper authentication checks",
+      "timestamp": "2025-10-25T19:31:07.920765"
+    },
+    {
+      "vuln_type": "JWT Vulnerability",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:5002/books/v1",
+      "description": "API accepted an unsigned JWT (alg=none)",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Reject tokens with alg=none and verify signature for all JWTs",
+      "timestamp": "2025-10-25T19:31:07.930737"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:5002/books/v1",
+      "description": "No rate limiting detected - 50 requests in 0.21s",
+      "evidence": {
+        "requests": 50,
+        "time": "0.21s",
+        "success_rate": "50/50"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-25T19:31:10.175751"
+    }
+  ],
+  "endpoints_tested": 8,
+  "requests_made": 570
+}

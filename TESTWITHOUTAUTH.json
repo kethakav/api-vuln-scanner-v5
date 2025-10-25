@@ -1,0 +1,90 @@
+{
+  "target": "http://localhost:9001/",
+  "scan_start": "2025-10-25T18:41:39.967287",
+  "scan_end": "2025-10-25T18:41:46.843870",
+  "findings": [
+    {
+      "vuln_type": "Broken Authentication",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:9001/health",
+      "description": "Endpoint accessible without authentication",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Implement proper authentication checks",
+      "timestamp": "2025-10-25T18:41:40.542296"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/health",
+      "description": "CORS policy allows all origins (*)",
+      "evidence": {
+        "ACAO": "*"
+      },
+      "remediation": "Restrict CORS to specific trusted origins",
+      "timestamp": "2025-10-25T18:41:42.173553"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/health",
+      "description": "No rate limiting detected - 50 requests in 0.09s",
+      "evidence": {
+        "requests": 50,
+        "time": "0.09s",
+        "success_rate": "50/50"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-25T18:41:42.267513"
+    },
+    {
+      "vuln_type": "Broken Authentication",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:9001/public",
+      "description": "Endpoint accessible without authentication",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Implement proper authentication checks",
+      "timestamp": "2025-10-25T18:41:42.710723"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/public",
+      "description": "CORS policy allows all origins (*)",
+      "evidence": {
+        "ACAO": "*"
+      },
+      "remediation": "Restrict CORS to specific trusted origins",
+      "timestamp": "2025-10-25T18:41:44.358474"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/public",
+      "description": "No rate limiting detected - 50 requests in 0.08s",
+      "evidence": {
+        "requests": 50,
+        "time": "0.08s",
+        "success_rate": "50/50"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-25T18:41:44.444229"
+    },
+    {
+      "vuln_type": "CORS Misconfiguration",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:9001/protected",
+      "description": "CORS policy allows all origins (*)",
+      "evidence": {
+        "ACAO": "*"
+      },
+      "remediation": "Restrict CORS to specific trusted origins",
+      "timestamp": "2025-10-25T18:41:46.552689"
+    }
+  ],
+  "endpoints_tested": 3,
+  "requests_made": 0
+}
