@@ -1,7 +1,7 @@
 {
   "target": "http://localhost:5002/",
-  "scan_start": "2025-10-25T19:30:51.280629",
-  "scan_end": "2025-10-25T19:31:12.889659",
+  "scan_start": "2025-10-25T20:37:05.370035",
+  "scan_end": "2025-10-25T20:37:14.776535",
   "findings": [
     {
       "vuln_type": "Broken Authentication",
@@ -12,31 +12,7 @@
         "status_code": 200
       },
       "remediation": "Implement proper authentication checks",
-      "timestamp": "2025-10-25T19:30:51.829970"
-    },
-    {
-      "vuln_type": "JWT Vulnerability",
-      "severity": "CRITICAL",
-      "endpoint": "http://localhost:5002/createdb",
-      "description": "API accepted an unsigned JWT (alg=none)",
-      "evidence": {
-        "status_code": 200
-      },
-      "remediation": "Reject tokens with alg=none and verify signature for all JWTs",
-      "timestamp": "2025-10-25T19:30:51.864088"
-    },
-    {
-      "vuln_type": "SQL Injection",
-      "severity": "CRITICAL",
-      "endpoint": "http://localhost:5002/createdb",
-      "description": "Possible SQL injection in parameter 'id'",
-      "evidence": {
-        "payload": "' OR '1'='1",
-        "status_code": 500,
-        "response_snippet": "<!doctype html>\n<html lang=en>\n  <head>\n    <title>sqlalchemy.exc.IntegrityError: (sqlite3.IntegrityError) UNIQUE constraint failed: books.book_title\n[SQL: INSERT INTO books (book_title, secret_conten"
-      },
-      "remediation": "Use parameterized queries and input validation",
-      "timestamp": "2025-10-25T19:30:51.910154"
+      "timestamp": "2025-10-25T20:37:05.923107"
     },
     {
       "vuln_type": "Broken Authentication",
@@ -47,112 +23,80 @@
         "status_code": 200
       },
       "remediation": "Implement proper authentication checks",
-      "timestamp": "2025-10-25T19:30:55.267157"
-    },
-    {
-      "vuln_type": "JWT Vulnerability",
-      "severity": "CRITICAL",
-      "endpoint": "http://localhost:5002/",
-      "description": "API accepted an unsigned JWT (alg=none)",
-      "evidence": {
-        "status_code": 200
-      },
-      "remediation": "Reject tokens with alg=none and verify signature for all JWTs",
-      "timestamp": "2025-10-25T19:30:55.275010"
+      "timestamp": "2025-10-25T20:37:07.367107"
     },
     {
       "vuln_type": "Missing Rate Limiting",
       "severity": "MEDIUM",
       "endpoint": "http://localhost:5002/",
-      "description": "No rate limiting detected - 50 requests in 0.09s",
+      "description": "No rate limiting detected - 30 requests in 0.06s",
       "evidence": {
-        "requests": 50,
+        "requests": 30,
+        "time": "0.06s",
+        "success_rate": "30/30"
+      },
+      "remediation": "Implement rate limiting to prevent abuse",
+      "timestamp": "2025-10-25T20:37:07.435730"
+    },
+    {
+      "vuln_type": "Broken Authentication",
+      "severity": "CRITICAL",
+      "endpoint": "http://localhost:5002/users/v1",
+      "description": "Endpoint accessible without authentication",
+      "evidence": {
+        "status_code": 200
+      },
+      "remediation": "Implement proper authentication checks",
+      "timestamp": "2025-10-25T20:37:07.867958"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting",
+      "severity": "MEDIUM",
+      "endpoint": "http://localhost:5002/users/v1",
+      "description": "No rate limiting detected - 30 requests in 0.09s",
+      "evidence": {
+        "requests": 30,
         "time": "0.09s",
-        "success_rate": "50/50"
+        "success_rate": "30/30"
       },
       "remediation": "Implement rate limiting to prevent abuse",
-      "timestamp": "2025-10-25T19:30:57.312360"
+      "timestamp": "2025-10-25T20:37:07.959750"
     },
     {
       "vuln_type": "Broken Authentication",
       "severity": "CRITICAL",
-      "endpoint": "http://localhost:5002/users/v1",
+      "endpoint": "http://localhost:5002/users/v1/_debug",
       "description": "Endpoint accessible without authentication",
       "evidence": {
         "status_code": 200
       },
       "remediation": "Implement proper authentication checks",
-      "timestamp": "2025-10-25T19:30:57.744888"
-    },
-    {
-      "vuln_type": "JWT Vulnerability",
-      "severity": "CRITICAL",
-      "endpoint": "http://localhost:5002/users/v1",
-      "description": "API accepted an unsigned JWT (alg=none)",
-      "evidence": {
-        "status_code": 200
-      },
-      "remediation": "Reject tokens with alg=none and verify signature for all JWTs",
-      "timestamp": "2025-10-25T19:30:57.751915"
+      "timestamp": "2025-10-25T20:37:08.385955"
     },
     {
       "vuln_type": "Missing Rate Limiting",
       "severity": "MEDIUM",
-      "endpoint": "http://localhost:5002/users/v1",
-      "description": "No rate limiting detected - 50 requests in 0.15s",
+      "endpoint": "http://localhost:5002/users/v1/_debug",
+      "description": "No rate limiting detected - 30 requests in 0.08s",
       "evidence": {
-        "requests": 50,
-        "time": "0.15s",
-        "success_rate": "50/50"
+        "requests": 30,
+        "time": "0.08s",
+        "success_rate": "30/30"
       },
       "remediation": "Implement rate limiting to prevent abuse",
-      "timestamp": "2025-10-25T19:30:59.903277"
+      "timestamp": "2025-10-25T20:37:08.473187"
     },
     {
-      "vuln_type": "Broken Authentication",
-      "severity": "CRITICAL",
-      "endpoint": "http://localhost:5002/users/v1/_debug",
-      "description": "Endpoint accessible without authentication",
-      "evidence": {
-        "status_code": 200
-      },
-      "remediation": "Implement proper authentication checks",
-      "timestamp": "2025-10-25T19:31:00.350189"
-    },
-    {
-      "vuln_type": "JWT Vulnerability",
-      "severity": "CRITICAL",
-      "endpoint": "http://localhost:5002/users/v1/_debug",
-      "description": "API accepted an unsigned JWT (alg=none)",
-      "evidence": {
-        "status_code": 200
-      },
-      "remediation": "Reject tokens with alg=none and verify signature for all JWTs",
-      "timestamp": "2025-10-25T19:31:00.360605"
-    },
-    {
-      "vuln_type": "Information Disclosure",
+      "vuln_type": "NoSQL Injection",
       "severity": "HIGH",
-      "endpoint": "http://localhost:5002/users/v1/_debug",
-      "description": "Password field in response",
+      "endpoint": "http://localhost:5002/users/v1/login",
+      "description": "Possible NoSQL injection via body field path username",
       "evidence": {
-        "pattern": "password"
+        "payload": "{\"$gt\": \"\"}",
+        "status_code": 200
       },
-      "remediation": "Remove sensitive data from API responses",
-      "timestamp": "2025-10-25T19:31:02.067491"
-    },
-    {
-      "vuln_type": "Missing Rate Limiting",
-      "severity": "MEDIUM",
-      "endpoint": "http://localhost:5002/users/v1/_debug",
-      "description": "No rate limiting detected - 50 requests in 0.14s",
-      "evidence": {
-        "requests": 50,
-        "time": "0.14s",
-        "success_rate": "50/50"
-      },
-      "remediation": "Implement rate limiting to prevent abuse",
-      "timestamp": "2025-10-25T19:31:02.461601"
+      "remediation": "Validate and sanitize JSON bodies; disallow operator injection in user input",
+      "timestamp": "2025-10-25T20:37:09.687005"
     },
     {
       "vuln_type": "Broken Authentication",
@@ -163,33 +107,22 @@
         "status_code": 200
       },
       "remediation": "Implement proper authentication checks",
-      "timestamp": "2025-10-25T19:31:07.920765"
-    },
-    {
-      "vuln_type": "JWT Vulnerability",
-      "severity": "CRITICAL",
-      "endpoint": "http://localhost:5002/books/v1",
-      "description": "API accepted an unsigned JWT (alg=none)",
-      "evidence": {
-        "status_code": 200
-      },
-      "remediation": "Reject tokens with alg=none and verify signature for all JWTs",
-      "timestamp": "2025-10-25T19:31:07.930737"
+      "timestamp": "2025-10-25T20:37:13.168788"
     },
     {
       "vuln_type": "Missing Rate Limiting",
       "severity": "MEDIUM",
       "endpoint": "http://localhost:5002/books/v1",
-      "description": "No rate limiting detected - 50 requests in 0.21s",
+      "description": "No rate limiting detected - 30 requests in 0.12s",
       "evidence": {
-        "requests": 50,
-        "time": "0.21s",
-        "success_rate": "50/50"
+        "requests": 30,
+        "time": "0.12s",
+        "success_rate": "30/30"
       },
       "remediation": "Implement rate limiting to prevent abuse",
-      "timestamp": "2025-10-25T19:31:10.175751"
+      "timestamp": "2025-10-25T20:37:13.294250"
     }
   ],
-  "endpoints_tested": 8,
-  "requests_made": 570
+  "endpoints_tested": 14,
+  "requests_made": 456
 }

@@ -61,10 +61,23 @@ The scanner includes checks for:
 - IDOR (sequential ID probing)
 - CORS misconfigurations (wildcard origin, origin reflection, and credentials+wildcard)
 - Sensitive data exposure (keyword-based)
-- Rate limiting (concurrent request probe with 429/Retry-After/X-RateLimit detection)
+- Rate limiting (concurrent request probe with 429/Retry-After/X-RateLimit detection; method-aware)
 - Reflected XSS (simple reflection heuristic on a query param)
 
 You can tune the target and which endpoints to exercise; more granular per-test toggles are planned.
+
+## OpenAPI method coverage
+
+If you provide an OpenAPI 3.x spec via `openapi_path`, the scanner now extracts operations across methods (GET/POST/PUT/PATCH/DELETE) and runs method-aware tests. Currently:
+
+- GET operations: full suite as before (auth bypass, JWT analysis, SQL/NoSQL heuristics, IDOR, CORS, sensitive data exposure, reflected XSS, rate limiting)
+- POST/PUT/PATCH operations: auth bypass, JWT analysis, CORS, NoSQL body injection heuristic, and rate limiting
+
+This is an incremental step; deeper schema-driven fuzzing is planned.
+
+### Minimal request body generation (new)
+
+For POST/PUT/PATCH operations with `application/json` request bodies, the scanner now attempts to generate a minimal valid JSON payload using OpenAPI examples/defaults or simple type-based synthesis (strings, numbers, booleans, arrays, and objects with required fields). This enables baseline requests and basic NoSQL-injection mutation testing against body fields.
 
 ## Use the spider in the scanner
 

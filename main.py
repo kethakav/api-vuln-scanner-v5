@@ -181,6 +181,50 @@ class OpenAPISpecUtil:
                 deduped.append(url)
         return deduped, resolved_base
 
+    @classmethod
+    def extract_operations(
+        cls,
+        spec: Dict[str, Any],
+        base_url: Optional[str] = None,
+        methods: Optional[List[str]] = None,
+    ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+        """
+        Returns (operations, resolved_base_url)
+
+        Each operation is a dict: {
+          'method': 'get'|'post'|..., 'path': '/users', 'url': 'https://..',
+          'operationId': str|None, 'parameters': [...], 'requestBody': {...}|None
+        }
+        """
+        resolved_base = base_url or cls._resolve_server_url(spec)
+        paths = spec.get("paths") or {}
+        method_filter = set(m.lower() for m in (methods or ["get", "post", "put", "patch", "delete"]))
+        ops: List[Dict[str, Any]] = []
+
+        for path_key, path_item in paths.items():
+            if not isinstance(path_item, dict):
+                continue
+            for method, op in path_item.items():
+                m = method.lower()
+                if m not in method_filter or m not in cls.METHOD_KEYS:
+                    continue
+                if not isinstance(op, dict):
+                    continue
+                url = None
+                if resolved_base:
+                    url = cls._join_url(resolved_base, path_key)
+                elif base_url:
+                    url = cls._join_url(base_url, path_key)
+                ops.append({
+                    "method": m,
+                    "path": path_key,
+                    "url": url or path_key,
+                    "operationId": op.get("operationId"),
+                    "parameters": op.get("parameters", []),
+                    "requestBody": op.get("requestBody"),
+                })
+        return ops, resolved_base
+
     @staticmethod
     def derive_auth_config(spec: Dict[str, Any]) -> Optional[AuthConfig]:
         """
@@ -297,13 +341,17 @@ class AuthenticationTests:
     """Authentication and authorization testing"""
     
     @staticmethod
-    async def test_broken_auth(client: httpx.AsyncClient, endpoint: str) -> List[Finding]:
+    async def test_broken_auth(
+        client: httpx.AsyncClient,
+        endpoint: str,
+        method: str = "GET"
+    ) -> List[Finding]:
         findings = []
         
         # Test 1: Access without authentication (use a fresh client with no default headers)
         try:
             async with httpx.AsyncClient(follow_redirects=True, timeout=getattr(client, "timeout", None)) as unauth_client:
-                resp = await unauth_client.get(endpoint)
+                resp = await unauth_client.request(method.upper(), endpoint)
             if resp.status_code == 200:
                 findings.append(Finding(
                     vuln_type=VulnerabilityType.BROKEN_AUTH,
@@ -478,6 +526,68 @@ class InjectionTests:
         
         return findings
 
+    @staticmethod
+    async def test_nosql_injection_in_body(
+        client: httpx.AsyncClient,
+        endpoint: str,
+        base_body: Dict[str, Any]
+    ) -> List[Finding]:
+        """Attempt NoSQL injection by mutating one field in a JSON body.
+        Chooses a string-like field and injects common NoSQL payloads.
+        """
+        findings: List[Finding] = []
+
+        # Helper to find candidate field path
+        def _first_scalar_key(d: Any, path: List[str]) -> Optional[List[str]]:
+            if isinstance(d, dict):
+                for k, v in d.items():
+                    p = path + [k]
+                    if isinstance(v, (str, int, float)):
+                        return p
+                    res = _first_scalar_key(v, p)
+                    if res is not None:
+                        return res
+            elif isinstance(d, list) and d:
+                return _first_scalar_key(d[0], path + ["0"])  # treat first element
+            return None
+
+        target_path = _first_scalar_key(base_body, [])
+        if not target_path:
+            return findings
+
+        # function to set value by path
+        def _set_path(obj: Any, path: List[str], value: Any) -> Any:
+            if not path:
+                return value
+            head, *tail = path
+            if isinstance(obj, list):
+                idx = int(head)
+                obj[idx] = _set_path(obj[idx], tail, value)
+            else:
+                obj[head] = _set_path(obj.get(head), tail, value)
+            return obj
+
+        for payload in PayloadLibrary.NOSQL_INJECTION:
+            try:
+                mutated = json.loads(json.dumps(base_body))  # deep copy
+                _set_path(mutated, target_path, payload)
+                resp = await client.post(endpoint, json=mutated, headers={"Content-Type": "application/json"})
+                if resp.status_code == 200 and len(resp.text or "") > 100:
+                    findings.append(Finding(
+                        vuln_type=VulnerabilityType.NOSQL_INJECTION,
+                        severity=SeverityLevel.HIGH,
+                        endpoint=endpoint,
+                        description=f"Possible NoSQL injection via body field path {'/'.join(target_path)}",
+                        evidence={"payload": payload, "status_code": resp.status_code},
+                        remediation="Validate and sanitize JSON bodies; disallow operator injection in user input"
+                    ))
+                    break
+            except Exception:
+                continue
+            await asyncio.sleep(0.05)
+
+        return findings
+
 
 class APISecurityTests:
     """API-specific security tests"""
@@ -520,7 +630,8 @@ class APISecurityTests:
     async def test_rate_limiting(
         client: httpx.AsyncClient,
         endpoint: str,
-        requests_count: int = 100
+        requests_count: int = 100,
+        method: str = "GET"
     ) -> List[Finding]:
         findings = []
         
@@ -534,7 +645,7 @@ class APISecurityTests:
 
             async def fetch_once():
                 async with sem:
-                    r = await client.get(endpoint)
+                    r = await client.request(method.upper(), endpoint)
                     statuses.append(r.status_code)
                     headers_list.append({k: v for k, v in r.headers.items()})
 
@@ -709,10 +820,13 @@ class APIPenTester:
         )
         self.client: Optional[httpx.AsyncClient] = None
         self.transport = transport
+        self.spec: Optional[Dict[str, Any]] = None
+        self.operations: List[Dict[str, Any]] = []
         # If an OpenAPI spec path is provided, attempt to populate endpoints and defaults
         if self.config.openapi_path:
             try:
                 spec = OpenAPISpecUtil._load_spec(self.config.openapi_path)
+                self.spec = spec
                 # Try to extract GET endpoints if none explicitly provided
                 if not self.config.endpoints:
                     endpoints, resolved_base = OpenAPISpecUtil.extract_endpoints(
@@ -740,6 +854,12 @@ class APIPenTester:
                     if inferred:
                         self.config.auth = inferred
                         console.print("[dim]Auth inferred from OpenAPI securitySchemes; add credentials to use.[/dim]")
+                # Extract broader set of operations (GET/POST/PUT/PATCH/DELETE)
+                ops, _ = OpenAPISpecUtil.extract_operations(
+                    spec, base_url=str(self.config.base_url)
+                )
+                if ops:
+                    self.operations = ops
             except Exception as e:
                 console.print(f"[yellow]OpenAPI parsing skipped: {e}[/yellow]")
     
@@ -793,7 +913,7 @@ class APIPenTester:
             
             # Authentication tests
             progress.update(task, description="Testing authentication...")
-            findings = await AuthenticationTests.test_broken_auth(self.client, endpoint)
+            findings = await AuthenticationTests.test_broken_auth(self.client, endpoint, "GET")
             all_findings.extend(findings)
             
             # JWT tests (if token provided)
@@ -841,26 +961,217 @@ class APIPenTester:
             # Rate limiting (do this last as it's intensive)
             progress.update(task, description="Testing rate limiting...")
             findings = await APISecurityTests.test_rate_limiting(
-                self.client, endpoint, requests_count=50
+                self.client, endpoint, requests_count=50, method="GET"
             )
             all_findings.extend(findings)
         
         self.report.endpoints_tested += 1
         return all_findings
+
+    async def scan_operation(self, op: Dict[str, Any]) -> List[Finding]:
+        """Run tests tailored to the HTTP method of the operation."""
+        method = op.get("method", "get").upper()
+        endpoint = op.get("url")
+        if not endpoint:
+            return []
+        all_findings: List[Finding] = []
+
+        console.print(f"[cyan]Testing {method} operation:[/cyan] {endpoint}")
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            task = progress.add_task("Running tests...", total=None)
+
+            # Broken auth using the correct method
+            progress.update(task, description="Testing authentication...")
+            findings = await AuthenticationTests.test_broken_auth(self.client, endpoint, method)
+            all_findings.extend(findings)
+
+            # JWT tests
+            if self.config.auth and self.config.auth.token:
+                progress.update(task, description="Analyzing JWT...")
+                findings = await AuthenticationTests.test_jwt_vulnerabilities(
+                    self.client, self.config.auth.token, endpoint
+                )
+                all_findings.extend(findings)
+
+            # Injection/body tests for write methods
+            if method in {"POST", "PUT", "PATCH"}:
+                # Baseline request using generated body if possible
+                body = self._generate_request_body(op)
+                if body is not None:
+                    try:
+                        await self.client.request(method, endpoint, json=body)
+                    except Exception:
+                        pass
+                progress.update(task, description="Testing NoSQL injection (body)...")
+                if body is not None and isinstance(body, dict):
+                    findings = await InjectionTests.test_nosql_injection_in_body(self.client, endpoint, body)
+                else:
+                    findings = await InjectionTests.test_nosql_injection(self.client, endpoint, "id")
+                all_findings.extend(findings)
+
+            # CORS (preflight/OPTIONS)
+            progress.update(task, description="Testing CORS...")
+            findings = await APISecurityTests.test_cors(self.client, endpoint)
+            all_findings.extend(findings)
+
+            # Rate limiting using the method
+            progress.update(task, description="Testing rate limiting...")
+            findings = await APISecurityTests.test_rate_limiting(self.client, endpoint, requests_count=30, method=method)
+            all_findings.extend(findings)
+
+        self.report.endpoints_tested += 1
+        return all_findings
+
+    def _generate_request_body(self, op: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Generate a minimal JSON body from the operation's requestBody schema or examples.
+        Only handles application/json. Best-effort with simple types and refs.
+        """
+        try:
+            rb = op.get("requestBody") or {}
+            content = rb.get("content") if isinstance(rb, dict) else None
+            if not content or not isinstance(content, dict):
+                return None
+            # Prefer application/json
+            json_ct = None
+            for ct in ("application/json", "application/*+json"):
+                if ct in content:
+                    json_ct = content[ct]
+                    break
+            if not json_ct:
+                # pick first json-like
+                for ct, v in content.items():
+                    if "json" in ct:
+                        json_ct = v
+                        break
+            if not json_ct or not isinstance(json_ct, dict):
+                return None
+
+            # examples
+            if "example" in json_ct and isinstance(json_ct["example"], dict):
+                return json_ct["example"]
+            exs = json_ct.get("examples")
+            if isinstance(exs, dict) and exs:
+                first = next(iter(exs.values()))
+                if isinstance(first, dict):
+                    if "value" in first and isinstance(first["value"], dict):
+                        return first["value"]
+
+            schema = json_ct.get("schema")
+            components = (self.spec or {}).get("components", {}) if self.spec else {}
+            if schema and isinstance(schema, dict):
+                return self._generate_from_schema(schema, components)
+        except Exception:
+            return None
+        return None
+
+    def _resolve_ref(self, ref: str, components: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if not ref.startswith("#/"):
+            return None
+        parts = ref.lstrip("#/").split("/")
+        node: Any = components
+        for p in parts[1:]:  # first part should be 'components'
+            if isinstance(node, dict) and p in node:
+                node = node[p]
+            else:
+                return None
+        return node if isinstance(node, dict) else None
+
+    def _generate_from_schema(self, schema: Dict[str, Any], components: Dict[str, Any], depth: int = 0) -> Dict[str, Any]:
+        if depth > 3:
+            return {}
+        # $ref
+        if "$ref" in schema:
+            target = self._resolve_ref(schema["$ref"], {"components": components})
+            if isinstance(target, dict):
+                return self._generate_from_schema(target, components, depth + 1)
+            return {}
+
+        typ = schema.get("type")
+        if not typ and "oneOf" in schema and isinstance(schema["oneOf"], list) and schema["oneOf"]:
+            return self._generate_from_schema(schema["oneOf"][0], components, depth + 1)
+        if not typ and "anyOf" in schema and isinstance(schema["anyOf"], list) and schema["anyOf"]:
+            return self._generate_from_schema(schema["anyOf"][0], components, depth + 1)
+
+        if typ == "object" or ("properties" in schema):
+            props = schema.get("properties", {})
+            required = set(schema.get("required", []) or [])
+            result: Dict[str, Any] = {}
+            for name, subschema in props.items():
+                val: Any
+                # enums
+                if isinstance(subschema, dict) and "enum" in subschema and subschema["enum"]:
+                    val = subschema["enum"][0]
+                else:
+                    val = self._generate_value(subschema or {}, components, depth + 1)
+                # include if required or small payload
+                if name in required or len(result) < 5:
+                    result[name] = val
+            return result
+        # default empty object if unspecified
+        return {}
+
+    def _generate_value(self, schema: Dict[str, Any], components: Dict[str, Any], depth: int) -> Any:
+        if "$ref" in schema:
+            target = self._resolve_ref(schema["$ref"], {"components": components})
+            if isinstance(target, dict):
+                # Resolve recursively and then return generated value (object)
+                return self._generate_from_schema(target, components, depth + 1)
+            return None
+
+        typ = schema.get("type")
+        fmt = schema.get("format")
+        if typ == "string":
+            if "enum" in schema and schema["enum"]:
+                return schema["enum"][0]
+            if fmt == "email":
+                return "user@example.com"
+            if fmt == "uuid":
+                return "00000000-0000-4000-8000-000000000000"
+            if fmt == "date-time":
+                return datetime.utcnow().isoformat() + "Z"
+            return schema.get("default") or schema.get("example") or "test"
+        if typ == "integer":
+            return schema.get("default") or 1
+        if typ == "number":
+            return schema.get("default") or 1.0
+        if typ == "boolean":
+            return schema.get("default") if isinstance(schema.get("default"), bool) else True
+        if typ == "array":
+            items = schema.get("items") or {}
+            return [self._generate_value(items, components, depth + 1)]
+        if typ == "object" or "properties" in schema:
+            return self._generate_from_schema(schema, components, depth + 1)
+        # fallback
+        return None
     
     async def run_scan(self) -> ScanReport:
         """Execute complete security scan"""
         console.print(Panel.fit(
             f"[bold cyan]API Security Scan[/bold cyan]\n"
             f"Target: {self.config.base_url}\n"
-            f"Endpoints: {len(self.config.endpoints)}",
+            f"Endpoints: {len(self.config.endpoints)} | Operations: {len(self.operations)}",
             border_style="cyan"
         ))
         
-        for endpoint in self.config.endpoints:
-            findings = await self.scan_endpoint(endpoint)
-            self.report.findings.extend(findings)
-            await asyncio.sleep(1 / self.config.rate_limit)  # Rate limiting
+        if self.operations:
+            visited = set()
+            for op in self.operations:
+                key = (op.get("method"), op.get("url"))
+                if key in visited:
+                    continue
+                visited.add(key)
+                findings = await self.scan_operation(op)
+                self.report.findings.extend(findings)
+                await asyncio.sleep(1 / self.config.rate_limit)
+        else:
+            for endpoint in self.config.endpoints:
+                findings = await self.scan_endpoint(endpoint)
+                self.report.findings.extend(findings)
+                await asyncio.sleep(1 / self.config.rate_limit)  # Rate limiting
         
         self.report.scan_end = datetime.now()
         return self.report
@@ -942,10 +1253,10 @@ async def main():
         openapi_path=str(Path(__file__).with_name("openapi3.yml")),
         # Leave endpoints empty to let the spec populate GET endpoints automatically.
         endpoints=[],
-        auth=AuthConfig(
-            auth_type="bearer",
-            token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjEzOTY4ODAsImlhdCI6MTc2MTM5MDg4MCwic3ViIjoibmFtZTEifQ.4wt-gYmfBomTMkXeHHaRuzMWBo2gcPOr-T8a3UwzO70"
-        ),
+        # auth=AuthConfig(
+        #     auth_type="bearer",
+        #     token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjEzOTY4ODAsImlhdCI6MTc2MTM5MDg4MCwic3ViIjoibmFtZTEifQ.4wt-gYmfBomTMkXeHHaRuzMWBo2gcPOr-T8a3UwzO70"
+        # ),
         rate_limit=5,  # Requests per second
         timeout=30
     )
