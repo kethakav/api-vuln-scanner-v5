@@ -9,6 +9,7 @@ Security: Bearer token via Authorization header. Configure API_AUTH_TOKEN env va
 """
 
 import os
+import glob
 import asyncio
 from typing import List, Optional, Dict, Any
 from urllib.parse import urljoin, urlparse
@@ -137,6 +138,52 @@ app.add_middleware(
 DATA_DIR = os.getenv("DATA_DIR", "/data")
 SPECS_DIR = os.path.join(DATA_DIR, "specs")
 os.makedirs(SPECS_DIR, exist_ok=True)
+
+
+def clean_openapi_files():
+    """Delete OpenAPI spec files from known locations (SPECS_DIR and project root).
+    Matches common patterns like '*openapi*.json', '*openapi*.yml', 'TEST*.json'.
+    """
+    patterns = ["*openapi*.json", "*openapi*.yaml", "*openapi*.yml", "TEST*.json"]
+    dirs = [SPECS_DIR, os.getcwd()]
+    removed = []
+    for d in dirs:
+        try:
+            for pat in patterns:
+                for path in glob.glob(os.path.join(d, pat)):
+                    # Ensure it's a file and avoid removing directories by mistake
+                    if os.path.isfile(path):
+                        try:
+                            os.remove(path)
+                            removed.append(path)
+                        except Exception:
+                            # ignore single-file failures
+                            pass
+        except Exception:
+            # ignore failures for non-existent dirs or permission issues
+            pass
+    if removed:
+        print(f"Cleaned OpenAPI spec files: {removed}")
+    else:
+        print("No OpenAPI spec files found to clean.")
+
+
+@app.on_event("startup")
+async def on_startup_cleanup():
+    # Remove any existing specs before starting a new run
+    try:
+        clean_openapi_files()
+    except Exception as e:
+        print(f"Startup cleanup error: {e}")
+
+
+@app.on_event("shutdown")
+async def on_shutdown_cleanup():
+    # Clean specs on shutdown as requested
+    try:
+        clean_openapi_files()
+    except Exception as e:
+        print(f"Shutdown cleanup error: {e}")
 
 
 def _latest_spec_path() -> Optional[str]:
