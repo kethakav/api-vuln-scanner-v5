@@ -90,9 +90,73 @@ $env:CORS_ORIGINS = "*"; docker compose up --build -d
 - GET `/health` – server health check
 - POST `/api/v1/scan/endpoint` – scan one or more endpoints with selected tests
 - POST `/api/v1/scan/full` – run a complete scan using OpenAPI and/or provided endpoints
- - POST `/api/v1/spec/upload` – upload an OpenAPI spec (JSON/YAML) to persistent volume
- - GET `/api/v1/spec/endpoints` – return only a list of endpoints with HTTP method from a stored spec
- - POST `/api/v1/auth/check` – verify target API authentication with provided credentials
+- POST `/api/v1/spec/upload` – upload an OpenAPI spec (JSON/YAML) scoped to a session
+- GET `/api/v1/spec/endpoints` – return only a list of endpoints with HTTP method from a stored spec (scoped by session)
+- POST `/api/v1/auth/check` – verify target API authentication with provided credentials
+- POST `/api/v1/sessions` – create a new session; returns `session_id`
+- DELETE `/api/v1/sessions/{session_id}` – delete a session and all its stored specs
+
+### Sessions and storage isolation
+
+Uploads and lookups are now scoped by a `session_id`. A session corresponds to a directory under the mounted volume (default: `/data/specs/{session_id}`) and is garbage-collected after one hour of inactivity.
+
+Environment variable:
+
+- `SESSION_TIMEOUT_SECONDS` – inactivity threshold for session GC (default: 3600)
+
+Workflow:
+
+1) Create a session:
+
+```powershell
+$token = "your-secret-admin-token"
+curl -X POST "http://localhost:8000/api/v1/sessions" `
+    -H "Authorization: Bearer $token"
+```
+
+Response:
+
+```json
+{ "session_id": "<uuid>", "dir": "/data/specs/<uuid>" }
+```
+
+2) Upload a spec to that session:
+
+```powershell
+curl -X POST "http://localhost:8000/api/v1/spec/upload" `
+    -H "Authorization: Bearer $token" `
+    -F "session_id=<uuid>" -F "file=@openapi.json"
+```
+
+3) Use `session_id` in scan requests (optional if you pass explicit `openapi_path`):
+
+```json
+{
+    "base_url": "http://localhost:9001",
+    "endpoint": "/users",
+    "method": "GET",
+    "selected_tests": ["BROKEN_AUTH", "IDOR"],
+    "session_id": "<uuid>",
+    "openapi_path": null,
+    "auth": null,
+    "rate_limit": 10,
+    "timeout": 30
+}
+```
+
+If `openapi_path` isn’t provided, the server will use the latest uploaded spec within that session.
+
+4) Optionally, list minimal endpoints from the session’s latest (or specific) spec:
+
+```powershell
+curl -H "Authorization: Bearer $token" "http://localhost:8000/api/v1/spec/endpoints?session_id=<uuid>"
+```
+
+5) Delete the session (also removes stored files):
+
+```powershell
+curl -X DELETE "http://localhost:8000/api/v1/sessions/<uuid>" -H "Authorization: Bearer $token"
+```
 
 ### POST /api/v1/scan/endpoint
 
@@ -105,6 +169,7 @@ Body example (single endpoint, backward compatible):
     "method": "GET",
     "selected_tests": ["BROKEN_AUTH", "JWT_VULN", "SQL_INJECTION", "NOSQL_INJECTION", "IDOR", "CORS", "INFO_DISCLOSURE", "XSS", "RATE_LIMIT"],
     "openapi_path": "openapi (1).json",
+    "session_id": "<uuid>",
     "auth": { "auth_type": "bearer", "token": "TARGET_API_TOKEN", "header_name": "Authorization" },
     "rate_limit": 10,
     "timeout": 30
@@ -126,6 +191,7 @@ Multiple endpoints (new):
     "method": "GET",
     "selected_tests": ["BROKEN_AUTH", "IDOR", "CORS", "RATE_LIMIT"],
     "openapi_path": null,
+    "session_id": "<uuid>",
     "auth": null,
     "rate_limit": 10,
     "timeout": 30
@@ -147,7 +213,8 @@ Body example (same shape as TargetConfig):
     "endpoints": [],
     "auth": { "auth_type": "bearer", "token": "TARGET_API_TOKEN" },
     "rate_limit": 5,
-    "timeout": 30
+    "timeout": 30,
+    "session_id": "<uuid>"
 }
 ```
 
@@ -197,7 +264,7 @@ Supported authentication methods:
 - Basic: HTTP Basic with username/password
 - API Key (header): header name configurable via `auth.header_name` (e.g., `X-API-Key`)
 
-### Upload an OpenAPI spec
+### Upload an OpenAPI spec (scoped to a session)
 
 Upload a spec file that will be saved to the mounted volume (`/data/specs`) and used as default for scans if none is provided explicitly:
 
@@ -206,7 +273,7 @@ PowerShell example:
 ```powershell
 $token = "your-secret-admin-token"
 $file = "C:\\path\\to\\openapi.json"
-Invoke-WebRequest -Uri "http://localhost:8000/api/v1/spec/upload" -Method Post -Headers @{ Authorization = "Bearer $token" } -Form @{ file = Get-Item $file }
+Invoke-WebRequest -Uri "http://localhost:8000/api/v1/spec/upload" -Method Post -Headers @{ Authorization = "Bearer $token" } -Form @{ session_id = "<uuid>"; file = Get-Item $file }
 ```
 
 Curl alternative:
@@ -214,6 +281,7 @@ Curl alternative:
 ```powershell
 curl -X POST "http://localhost:8000/api/v1/spec/upload" ^
     -H "Authorization: Bearer your-secret-admin-token" ^
+    -F "session_id=<uuid>" ^
     -F "file=@openapi.json"
 ```
 
@@ -232,7 +300,7 @@ Returns only the list of endpoints with their HTTP method from the latest upload
 ```
 
 ```powershell
-curl -H "Authorization: Bearer your-secret-admin-token" "http://localhost:8000/api/v1/spec/endpoints"
+curl -H "Authorization: Bearer your-secret-admin-token" "http://localhost:8000/api/v1/spec/endpoints?session_id=<uuid>"
 ```
 
 Optional filters:

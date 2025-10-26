@@ -12,9 +12,11 @@ import os
 import glob
 import asyncio
 from typing import List, Optional, Dict, Any
+from datetime import datetime
+import uuid
 from urllib.parse import urljoin, urlparse
 
-from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Query
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Query, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, HttpUrl, model_validator
@@ -70,6 +72,7 @@ class EndpointScanRequest(BaseModel):
         description="List of tests to run by key name",
     )
     openapi_path: Optional[str] = Field(default=None, description="Path to OpenAPI spec to aid request body generation")
+    session_id: Optional[str] = Field(default=None, description="Client session ID to scope specs and activity")
     auth: Optional[AuthConfig] = None
     rate_limit: int = Field(default=10)
     timeout: int = Field(default=30)
@@ -82,7 +85,7 @@ class EndpointScanRequest(BaseModel):
 
 
 class FullScanRequest(TargetConfig):
-    pass
+    session_id: Optional[str] = Field(default=None, description="Client session ID to scope specs and activity")
 
 
 class AuthCheckRequest(BaseModel):
@@ -110,7 +113,7 @@ class AuthCheckResult(BaseModel):
 # FastAPI app
 # ----------------------------------------------------------------------------
 
-app = FastAPI(title="API Vulnerability Scanner", version="1.2.0")
+app = FastAPI(title="API Vulnerability Scanner", version="1.3.0")
 
 # ----------------------------------------------------------------------------
 # CORS configuration
@@ -138,6 +141,109 @@ app.add_middleware(
 DATA_DIR = os.getenv("DATA_DIR", "/data")
 SPECS_DIR = os.path.join(DATA_DIR, "specs")
 os.makedirs(SPECS_DIR, exist_ok=True)
+
+# Session retention configuration (default: 1 hour)
+SESSION_TIMEOUT_SECONDS = int(os.getenv("SESSION_TIMEOUT_SECONDS", "3600"))
+
+
+class SessionManager:
+    """Per-user session manager with directory-backed storage under SPECS_DIR.
+
+    Tracks last activity via a heartbeat file in each session directory and
+    provides sweep of inactive sessions.
+    """
+
+    HEARTBEAT_FILE = "last_activity.txt"
+
+    @staticmethod
+    def _session_dir(session_id: str) -> str:
+        safe = session_id.replace("..", "_").replace("/", "_").replace("\\", "_")
+        return os.path.join(SPECS_DIR, safe)
+
+    @classmethod
+    def create_session(cls) -> Dict[str, Any]:
+        sid = str(uuid.uuid4())
+        sdir = cls._session_dir(sid)
+        os.makedirs(sdir, exist_ok=True)
+        cls.touch(sid)
+        return {"session_id": sid, "dir": sdir}
+
+    @classmethod
+    def delete_session(cls, session_id: str) -> bool:
+        sdir = cls._session_dir(session_id)
+        if os.path.isdir(sdir):
+            try:
+                for root, dirs, files in os.walk(sdir, topdown=False):
+                    for name in files:
+                        try:
+                            os.remove(os.path.join(root, name))
+                        except Exception:
+                            pass
+                    for name in dirs:
+                        try:
+                            os.rmdir(os.path.join(root, name))
+                        except Exception:
+                            pass
+                os.rmdir(sdir)
+            except Exception:
+                return False
+        return True
+
+    @classmethod
+    def ensure_session_dir(cls, session_id: str) -> str:
+        sdir = cls._session_dir(session_id)
+        if not os.path.isdir(sdir):
+            raise HTTPException(status_code=404, detail="Session not found")
+        return sdir
+
+    @classmethod
+    def touch(cls, session_id: str) -> None:
+        sdir = cls._session_dir(session_id)
+        if not os.path.isdir(sdir):
+            return
+        hb_path = os.path.join(sdir, cls.HEARTBEAT_FILE)
+        try:
+            with open(hb_path, "w", encoding="utf-8") as f:
+                f.write(datetime.utcnow().isoformat())
+        except Exception:
+            pass
+
+    @classmethod
+    def last_activity(cls, session_id: str) -> Optional[datetime]:
+        hb_path = os.path.join(cls._session_dir(session_id), cls.HEARTBEAT_FILE)
+        try:
+            with open(hb_path, "r", encoding="utf-8") as f:
+                txt = f.read().strip()
+                return datetime.fromisoformat(txt)
+        except Exception:
+            return None
+
+    @classmethod
+    def sweep_inactive(cls) -> List[str]:
+        """Delete sessions inactive beyond SESSION_TIMEOUT_SECONDS. Returns deleted session_ids."""
+        now = datetime.utcnow()
+        deleted: List[str] = []
+        try:
+            for name in os.listdir(SPECS_DIR):
+                sdir = os.path.join(SPECS_DIR, name)
+                if not os.path.isdir(sdir):
+                    continue
+                sid = name
+                last = cls.last_activity(sid)
+                if last is None:
+                    try:
+                        last = datetime.utcfromtimestamp(os.path.getmtime(sdir))
+                    except Exception:
+                        last = now
+                if (now - last).total_seconds() > SESSION_TIMEOUT_SECONDS:
+                    if cls.delete_session(sid):
+                        deleted.append(sid)
+        except Exception:
+            pass
+        return deleted
+
+
+_gc_task: Optional[asyncio.Task] = None
 
 
 def clean_openapi_files():
@@ -175,6 +281,22 @@ async def on_startup_cleanup():
         clean_openapi_files()
     except Exception as e:
         print(f"Startup cleanup error: {e}")
+    # Start background GC loop to remove inactive sessions
+    async def _gc_loop():
+        while True:
+            try:
+                deleted = SessionManager.sweep_inactive()
+                if deleted:
+                    print(f"GC removed inactive sessions: {deleted}")
+            except Exception as e:
+                print(f"Session GC error: {e}")
+            await asyncio.sleep(60)
+
+    global _gc_task
+    try:
+        _gc_task = asyncio.create_task(_gc_loop())
+    except Exception as e:
+        print(f"Failed to start GC task: {e}")
 
 
 @app.on_event("shutdown")
@@ -184,14 +306,23 @@ async def on_shutdown_cleanup():
         clean_openapi_files()
     except Exception as e:
         print(f"Shutdown cleanup error: {e}")
+    # Stop GC task gracefully
+    global _gc_task
+    if _gc_task:
+        _gc_task.cancel()
+        try:
+            await _gc_task
+        except Exception:
+            pass
 
 
-def _latest_spec_path() -> Optional[str]:
+def _latest_spec_path(session_id: Optional[str] = None) -> Optional[str]:
     try:
+        base_dir = SPECS_DIR if not session_id else SessionManager.ensure_session_dir(session_id)
         files = [
-            os.path.join(SPECS_DIR, f)
-            for f in os.listdir(SPECS_DIR)
-            if os.path.isfile(os.path.join(SPECS_DIR, f)) and os.path.splitext(f)[1].lower() in {".json", ".yaml", ".yml"}
+            os.path.join(base_dir, f)
+            for f in os.listdir(base_dir)
+            if os.path.isfile(os.path.join(base_dir, f)) and os.path.splitext(f)[1].lower() in {".json", ".yaml", ".yml"}
         ]
         if not files:
             return None
@@ -325,8 +456,10 @@ async def scan_single_or_multiple_endpoints(req: EndpointScanRequest, _: bool = 
         else:
             endpoint_urls.append(urljoin(str(req.base_url), ep))
 
-    # Prefer provided OpenAPI path, else fall back to the latest uploaded spec in volume
-    openapi_path = req.openapi_path or _latest_spec_path()
+    # Prefer provided OpenAPI path, else fall back to the latest uploaded spec in the session (if provided) or global
+    if req.session_id:
+        SessionManager.touch(req.session_id)
+    openapi_path = req.openapi_path or _latest_spec_path(req.session_id)
 
     config = TargetConfig(
         base_url=req.base_url,
@@ -353,9 +486,11 @@ async def scan_single_or_multiple_endpoints(req: EndpointScanRequest, _: bool = 
 
 @app.post("/api/v1/scan/full", response_model=ScanReport)
 async def scan_full(req: FullScanRequest, _: bool = Depends(require_api_token)):
-    # Fall back to latest uploaded spec if not provided
+    # Fall back to latest uploaded spec if not provided (scoped by session if present)
+    if req.session_id:
+        SessionManager.touch(req.session_id)
     if not req.openapi_path:
-        latest = _latest_spec_path()
+        latest = _latest_spec_path(req.session_id)
         if latest:
             req.openapi_path = latest
     async with APIPenTester(req) as scanner:
@@ -369,17 +504,20 @@ async def scan_full(req: FullScanRequest, _: bool = Depends(require_api_token)):
 
 
 @app.post("/api/v1/spec/upload")
-async def upload_spec(file: UploadFile = File(...), _: bool = Depends(require_api_token)):
+async def upload_spec(session_id: str = Form(...), file: UploadFile = File(...), _: bool = Depends(require_api_token)):
     """Upload an OpenAPI spec (JSON or YAML) and save to the mounted volume.
     Returns basic metadata and a derived summary.
     """
+    # Ensure session exists and record activity
+    SessionManager.touch(session_id)
+    dest_dir = SessionManager.ensure_session_dir(session_id)
     filename = os.path.basename(file.filename or "spec.json")
     # Basic sanitization: disallow path traversal
     filename = filename.replace("..", "_").replace("/", "_").replace("\\", "_")
     if os.path.splitext(filename)[1].lower() not in {".json", ".yaml", ".yml"}:
         raise HTTPException(status_code=400, detail="Only .json, .yaml, .yml are supported")
 
-    dest_path = os.path.join(SPECS_DIR, filename)
+    dest_path = os.path.join(dest_dir, filename)
     try:
         content = await file.read()
         with open(dest_path, "wb") as f:
@@ -397,6 +535,7 @@ async def upload_spec(file: UploadFile = File(...), _: bool = Depends(require_ap
         raise HTTPException(status_code=400, detail=f"Saved file but failed to parse: {e}")
 
     return {
+        "session_id": session_id,
         "saved_as": dest_path,
         "server_url": resolved,
         "operations": len(ops),
@@ -407,7 +546,8 @@ async def upload_spec(file: UploadFile = File(...), _: bool = Depends(require_ap
 
 @app.get("/api/v1/spec/endpoints")
 async def get_extracted_endpoints(
-    file: Optional[str] = Query(default=None, description="Optional spec filename to parse; defaults to latest uploaded"),
+    session_id: Optional[str] = Query(default=None, description="Session ID to scope the lookup; if omitted, uses global scope"),
+    file: Optional[str] = Query(default=None, description="Spec filename to parse within the session; defaults to latest uploaded in the session"),
     methods: Optional[List[str]] = Query(default=None, description="Filter by HTTP methods (e.g., GET,POST)"),
     _: bool = Depends(require_api_token),
 ):
@@ -416,15 +556,18 @@ async def get_extracted_endpoints(
     Response is a flat list of objects: [{"method": "GET", "endpoint": "/users"}]
     Note: Any scheme/host from the spec is stripped; only the path portion is returned.
     """
+    if session_id:
+        SessionManager.touch(session_id)
+    base_dir = SPECS_DIR if not session_id else SessionManager.ensure_session_dir(session_id)
     path = None
     if file:
         sanitized = os.path.basename(file).replace("..", "_")
-        candidate = os.path.join(SPECS_DIR, sanitized)
+        candidate = os.path.join(base_dir, sanitized)
         if not os.path.exists(candidate):
-            raise HTTPException(status_code=404, detail="Specified spec file not found")
+            raise HTTPException(status_code=404, detail="Specified spec file not found in session")
         path = candidate
     else:
-        path = _latest_spec_path()
+        path = _latest_spec_path(session_id)
         if not path:
             raise HTTPException(status_code=404, detail="No spec files found")
 
@@ -455,6 +598,29 @@ async def get_extracted_endpoints(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
+# ----------------------------------------------------------------------------
+# Session management endpoints
+# ----------------------------------------------------------------------------
+
+
+class SessionCreateResponse(BaseModel):
+    session_id: str
+    dir: str
+
+
+@app.post("/api/v1/sessions", response_model=SessionCreateResponse)
+async def create_session(_: bool = Depends(require_api_token)):
+    created = SessionManager.create_session()
+    return SessionCreateResponse(session_id=created["session_id"], dir=created["dir"])
+
+
+@app.delete("/api/v1/sessions/{session_id}")
+async def delete_session(session_id: str, _: bool = Depends(require_api_token)):
+    ok = SessionManager.delete_session(session_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Session not found or could not be deleted")
+    return {"deleted": True, "session_id": session_id}
 
 # Optional: local run (uvicorn)
 if __name__ == "__main__":
